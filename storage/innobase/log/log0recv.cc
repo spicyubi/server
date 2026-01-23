@@ -1331,10 +1331,12 @@ reload:
 
 			deferred_spaces.remove(space_id);
 			if (!f.space) {
+				bool is_flags = f.flags != f.initial_flags;
 				if (f.size
-				    || f.flags != f.initial_flags) {
+				    || is_flags) {
 					fil_space_set_recv_size_and_flags(
-						space->id, f.size, f.flags);
+						space->id, f.size, f.flags,
+						is_flags ? lsn : 0);
 				}
 
 				f.space = space;
@@ -2723,7 +2725,8 @@ same_page:
                 if (has_flags)
                   it->second.flags= flags;
               }
-              fil_space_set_recv_size_and_flags(space_id, size, flags);
+              fil_space_set_recv_size_and_flags(space_id, size, flags,
+                                                has_flags ? start_lsn : 0);
             }
           }
           last_offset+= rlen;
@@ -3081,9 +3084,10 @@ static buf_block_t *recv_recover_page(buf_block_t *block, mtr_t &mtr,
 		    : fil_space_t::get(block->page.id().space())) {
 			switch (a) {
 			case log_phys_t::APPLIED_TO_FSP_HEADER:
-				s->flags = mach_read_from_4(
-					FSP_HEADER_OFFSET
-					+ FSP_SPACE_FLAGS + frame);
+				fil_space_update_flags_recv(
+				  s, mach_read_from_4(FSP_HEADER_OFFSET +
+						      FSP_SPACE_FLAGS + frame),
+				  l->start_lsn);
 				s->size_in_header = mach_read_from_4(
 					FSP_HEADER_OFFSET + FSP_SIZE
 					+ frame);

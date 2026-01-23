@@ -1066,8 +1066,18 @@ bool fil_space_t::read_page0(const byte *dpage, bool no_lsn) noexcept
   return ok;
 }
 
-void fil_space_set_recv_size_and_flags(ulint id, uint32_t size, uint32_t flags)
-  noexcept
+void fil_space_update_flags_recv(fil_space_t *space, uint32_t flags,
+                                    lsn_t flags_lsn)
+{
+  if (flags_lsn >= space->get_flags_lsn())
+  {
+    space->flags= flags;
+    space->set_flags_lsn(flags_lsn);
+  }
+}
+
+void fil_space_set_recv_size_and_flags(ulint id, uint32_t size,
+                                       uint32_t flags, lsn_t flags_lsn) noexcept
 {
   ut_ad(id < SRV_SPACE_ID_UPPER_BOUND);
   mysql_mutex_assert_owner(&recv_sys.mutex);
@@ -1079,7 +1089,7 @@ void fil_space_set_recv_size_and_flags(ulint id, uint32_t size, uint32_t flags)
       if (size)
         space->recv_size= size;
       if (flags != FSP_FLAGS_FCRC32_MASK_MARKER)
-        space->flags= flags;
+        fil_space_update_flags_recv(space, flags, flags_lsn);
     }
   mysql_mutex_unlock(&fil_system.mutex);
 }

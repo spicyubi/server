@@ -435,6 +435,9 @@ private:
 
   /** LSN of undo tablespace creation or 0; protected by latch */
   lsn_t create_lsn= 0;
+
+  /** Start LSN of mtr record that updates space->flags or 0 */
+  lsn_t flags_lsn= 0;
 public:
   /** @return whether this is the temporary tablespace */
   bool is_temporary() const noexcept
@@ -454,6 +457,15 @@ public:
 
   /** @return the latest tablespace rebuild LSN, or 0 */
   lsn_t get_create_lsn() const noexcept { return create_lsn; }
+
+  /** Set flags_lsn. */
+  inline void set_flags_lsn(lsn_t lsn) noexcept
+  {
+    flags_lsn= lsn;
+  }
+
+  /** @return the start LSN of mtr record which updated space->flags, or 0 */
+  lsn_t get_flags_lsn() const noexcept { return flags_lsn; }
 
   /** Apply freed_ranges to the file.
   @param writable whether the file is writable
@@ -1669,12 +1681,21 @@ fil_space_free(
 	ulint		id,
 	bool		x_latched) noexcept;
 
-/** Set the recovered size of a tablespace in pages.
-@param	id	tablespace ID
-@param	size	recovered size in pages
-@param	flags	tablespace flags */
+/** Update space->flags only if the modifying record's start LSN is >= the start
+LSN of the mtr that last updated space->flags, to avoid applying stale updates.
+@param space      tablespace
+@param flags      recovered FSP_SPACE_FLAGS
+@param flags_lsn  start LSN of modifying flags */
+void fil_space_update_flags_recv(fil_space_t *space, uint32_t flags,
+                                    lsn_t flags_lsn);
+
+/** Set the recovered size and flags of a tablespace.
+@param id         tablespace ID
+@param size       recovered FSP_SIZE, or a less-than-equal value if no change
+@param flags      recovered FSP_SPACE_FLAGS if applicable
+@param flags_lsn  start LSN of modifying flags, or 0 */
 void fil_space_set_recv_size_and_flags(ulint id, uint32_t size,
-                                       uint32_t flags) noexcept;
+                                       uint32_t flags, lsn_t flags_lsn) noexcept;
 
 /*******************************************************************//**
 Sets the max tablespace id counter if the given number is bigger than the
