@@ -469,9 +469,10 @@ struct Master_info_file: Info_file
         }
       };
       /*
-        The ideal use would work with `double`s, including the `*1000` step,
-        but disappointingly, the double interfaces of @ref decimal_t are
-        implemented by printing into a string and parsing that char array.
+        The ideal implementation would work with native `double`s as they are
+        sufficiently precise in this case; but decimal2double() is currently
+        implemented by printing into a string and parsing that char array,
+        which is an even larger overhead than `my_decimal` multiplication.
       */
       static const auto MAX_PERIOD= Decimal_from_str(STRING_WITH_LEN(MAX)),
                         THOUSAND  = Decimal_from_str(STRING_WITH_LEN("1000"));
