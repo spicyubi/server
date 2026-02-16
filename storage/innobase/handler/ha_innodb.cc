@@ -3004,7 +3004,7 @@ void innobase_copy_frm_flags_from_table(dict_table_t *innodb_table,
   {
     innodb_table->stats_sample_pages= table_share->stats_sample_pages;
 #ifdef BTR_CUR_HASH_ADAPT
-    innodb_ahi_enable(innodb_table, table_share->option_struct, table);
+    innodb_ahi_enable(innodb_table, table_share->option_struct_table, table);
 #endif
   }
 }
