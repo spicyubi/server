@@ -879,7 +879,7 @@ int Item_in_subselect::optimize(double *out_rows, double *cost)
   if (join->group_list_for_estimates)
   {
     DBUG_PRINT("info",("Materialized join has grouping, trying to estimate it"));
-    double output_rows= get_post_group_estimate(join, *out_rows);
+    double output_rows= estimate_post_group_cardinality(join, *out_rows);
     DBUG_PRINT("info",("Got value of %g", output_rows));
     *out_rows= output_rows;
   }
@@ -5546,6 +5546,7 @@ void subselect_hash_sj_engine::cleanup()
 }
 
 
+#if 0
 /*
   Get fanout produced by tables specified in the table_map
 */
@@ -5597,7 +5598,6 @@ double get_fanout_with_deps(JOIN *join, table_map tset)
 }
 
 
-#if 0
 void check_out_index_stats(JOIN *join)
 {
   ORDER *order;
@@ -5676,7 +5676,6 @@ void check_out_index_stats(JOIN *join)
     }
   }
 }
-#endif
 
 
 /*
@@ -5749,6 +5748,7 @@ double get_post_group_estimate(JOIN* join, double join_op_rows)
   return out_rows;
 }
 
+#endif
 
 /**
   Execute a subquery IN predicate via materialization.

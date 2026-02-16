@@ -1241,8 +1241,8 @@ EXPLAIN
 SELECT * FROM t1, t2, v1 WHERE t2.a=t1.a AND t2.a=v1.a AND t2.a=v1.b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	<derived2>	ref	key0	key0	8	const,const	0	
 1	PRIMARY	t2	ref	a	a	4	const	1	Using index
-1	PRIMARY	<derived2>	ref	key0	key0	8	const,const	1	
 2	DERIVED	t3	ALL	NULL	NULL	NULL	NULL	12	Using temporary; Using filesort
 SELECT * FROM t1, t2, v1 WHERE t2.a=t1.a AND t2.a=v1.a AND t2.a=v1.b;
 a	a	a	b
@@ -4095,13 +4095,13 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	6	
 EXPLAIN SELECT * FROM v;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	7	
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	7	Using temporary; Using filesort
 3	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	6	
 EXPLAIN WITH cte AS ( SELECT a FROM t1 GROUP BY a
 HAVING a IN (SELECT c FROM t2 WHERE MAX(b)>20) ) SELECT * FROM cte;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	7	
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	7	Using temporary; Using filesort
 3	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	6	
 PREPARE stmt FROM "SELECT a FROM t1 GROUP BY a
@@ -4262,14 +4262,14 @@ where t1.a in (select t3.a from t3 group by t3.a
 having t3.a > any (select t2.b from t2
 where t2.b*10 < sum(t3.b)));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	test.t1.a	1	
+1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	0	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
 2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	5	Using temporary
 3	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
 explain select * from v;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
-1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	4	test.t1.a	1	
+1	PRIMARY	<subquery3>	ALL	distinct_key	NULL	NULL	NULL	0	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
 3	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	5	Using temporary
 4	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
 explain with cte as ( select * from t1
@@ -4277,8 +4277,8 @@ where t1.a in (select t3.a from t3 group by t3.a
 having t3.a > any (select t2.b from t2
 where t2.b*10 < sum(t3.b))) ) select * from cte;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
-1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	4	test.t1.a	1	
+1	PRIMARY	<subquery3>	ALL	distinct_key	NULL	NULL	NULL	0	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
 3	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	5	Using temporary
 4	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
 prepare stmt from "select * from t1
