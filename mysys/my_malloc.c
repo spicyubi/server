@@ -255,3 +255,136 @@ char *my_strndup(PSI_memory_key key, const char *from, size_t length, myf my_fla
   DBUG_RETURN(ptr);
 }
 
+
+#if defined(HAVE_MMAP) && !defined(_WIN32)
+/* Solaris for example has only MAP_ANON, FreeBSD has MAP_ANONYMOUS and
+MAP_ANON but MAP_ANONYMOUS is marked "for compatibility" */
+#if defined(MAP_ANONYMOUS)
+#define OS_MAP_ANON     MAP_ANONYMOUS
+#elif defined(MAP_ANON)
+#define OS_MAP_ANON     MAP_ANON
+#else
+#error unsupported mmap - no MAP_ANON{YMOUS}
+#endif
+#endif /* HAVE_MMAP && !_WIN32 */
+
+
+/**
+ Allocate a block of memory using mmap
+
+ @param key       Key for memory instrumentation
+ @param size      The size of memory requested in bytes
+ @param my_flags  myf flags
+
+ @return A pointer to mapped area; MAP_FAILED (i.e (void *) -1) on failure
+ */
+
+void *my_mmap_alloc(PSI_memory_key key, size_t size, myf my_flags)
+{
+  my_memory_header *mh;
+  void *ptr;
+  DBUG_ENTER("my_mmap_alloc");
+
+#if !defined(_WIN32) && !defined(HAVE_MMAP)
+  DBUG_RETURN(my_malloc(key, size, my_flags));
+#else
+  if (!(my_flags & (MY_WME | MY_FAE)))
+    my_flags|= my_global_flags;
+
+  if (!size)
+    size= 1;
+
+  size= ALIGN_SIZE(size);
+  if ((size + HEADER_SIZE) > SIZE_T_MAX - 1024L*1024L*16L)      /* Wrong call */
+    DBUG_RETURN(0);
+
+  //TODO: simulate out of memory
+#ifdef _WIN32
+  DBUG_PRINT("VirtualAlloc",("size: %zu flags: %lu", size, my_flags));
+  mh= (my_memory_header*) VirtualAlloc(NULL, size + HEADER_SIZE,
+                                       MEM_COMMIT | MEM_RESERVE,
+                                       PAGE_READWRITE);
+  if (mh == NULL)
+  {
+    my_errno= GetLastError();
+#elif defined(HAVE_MMAP) && !defined(_WIN32)
+  DBUG_PRINT("mmap",("size: %zu flags: %lu", size, my_flags));
+  mh= (my_memory_header*) mmap(NULL, size + HEADER_SIZE,
+                               PROT_READ | PROT_WRITE,
+                               MAP_PRIVATE | OS_MAP_ANON,
+                               -1, 0);
+  if (mh == MAP_FAILED)
+  {
+    my_errno= errno;
+#endif
+    if (my_flags & MY_FAE)
+      error_handler_hook= fatal_error_handler_hook;
+    if (my_flags & (MY_FAE+MY_WME))
+      my_error(EE_OUTOFMEMORY, MYF(ME_BELL+ME_ERROR_LOG+ME_FATAL),size);
+    if (my_flags & MY_FAE)
+      abort();
+    ptr= NULL;
+  }
+  else
+  {
+    int flag= MY_TEST(my_flags & MY_THREAD_SPECIFIC);
+    mh->m_size= size | flag;
+    mh->m_key= PSI_CALL_memory_alloc(key, size, &mh->m_owner);
+    update_malloc_size(size + HEADER_SIZE, flag);
+    ptr= HEADER_TO_USER(mh);
+    // mmap/VirtualAlloc is zero-filled (with MAP_ANONYMOUS), bzero not required
+    if (!(my_flags & MY_ZEROFILL))
+      TRASH_ALLOC(ptr, size);
+  }
+
+  DBUG_PRINT("exit",("ptr: %p", ptr));
+  DBUG_RETURN(ptr);
+#endif /* !defined(_WIN32) && !defined(HAVE_MMAP) */
+}
+
+
+/**
+  De-allocate/Unmap a block of memory
+
+  @param ptr  pointer to mapped area
+
+  @return 0 - on succes
+         -1 - on error, errno is set to indicate error
+ */
+int my_mmap_free(void *ptr)
+{
+  my_memory_header *mh;
+  size_t size;
+  my_bool flags;
+  DBUG_ENTER("my_mmap_free");
+
+  if (ptr == NULL)
+    DBUG_RETURN(0);
+
+#if !defined(_WIN32) && !defined(HAVE_MMAP)
+  my_free(ptr);
+#else
+  mh= USER_TO_HEADER(ptr);
+  size= mh->m_size & ~1;
+  flags= mh->m_size & 1;
+  PSI_CALL_memory_free(mh->m_key, size, mh->m_owner);
+  update_malloc_size(-(longlong) size - HEADER_SIZE, flags);
+
+#ifdef _WIN32
+  DBUG_PRINT("VirtualFree",("ptr: %p", ptr));
+  if (!VirtualFree(mh, 0, MEM_RELEASE))
+  {
+    my_errno= GetLastError();
+    DBUG_RETURN(-1);
+  }
+#elif defined(HAVE_MMAP) && !defined(_WIN32)
+  DBUG_PRINT("munmap",("ptr: %p", ptr));
+  if (munmap(mh, size + HEADER_SIZE) != 0)
+  {
+    my_errno= errno;
+    DBUG_RETURN(-1);
+  }
+#endif
+#endif /* !defined(_WIN32) && !defined(HAVE_MMAP) */
+    DBUG_RETURN(0);
+}
