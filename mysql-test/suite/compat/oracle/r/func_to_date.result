@@ -761,3 +761,6 @@ x
 NULL
 Warnings:
 Warning	1411	Incorrect datetime value: '26-OCT-1925' for function to_date
+SELECT TO_DATE('15 ابريل 2024','DD MONTH YYYY','NLS_DATE_LANGUAGE=EGYPTIAN') AS x FROM DUAL;
+x
+2024-04-15 00:00:00

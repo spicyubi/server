@@ -80,7 +80,7 @@ set lc_time_names=default;
 select * from t1;
 a	mn	dn	df
 2010-12-02	December	Thursday	Thu, Dec
-2010-12-02	Dezember	Donnerstag	Do, Dez
+2010-12-02	Dezember	Donnerstag	Do, Dez.
 drop table t1;
 create table t1 (a varchar(100) default @@sql_mode);
 insert t1 () values ();
